@@ -1,0 +1,182 @@
+<html>
+    <head>
+        <script>
+            function getCookie(cname) {
+                let name = cname + "=";
+                let decodedCookie = decodeURIComponent(document.cookie);
+                let ca = decodedCookie.split(';');
+                for(let i = 0; i <ca.length; i++) {
+                    let c = ca[i];
+                    while (c.charAt(0) == ' ') {
+                    c = c.substring(1);
+                    }
+                    if (c.indexOf(name) == 0) {
+                    return c.substring(name.length, c.length);
+                    }
+                }
+                return "";
+            }
+            function setCookie(cname, cvalue, exdays) {
+                const d = new Date();
+                d.setTime(d.getTime() + (exdays*24*60*60*1000));
+                let expires = "expires="+ d.toUTCString();
+                document.cookie = cname + "=" + cvalue + ";" + expires + ";path=/";
+            }
+            function fetchAvailableExercises() {
+                fetch('/exercises', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    })
+                    .then((response) => response.json())
+                    .then((data) => {
+                        console.log('Success:', data);
+                        localStorage.setItem('exercises', JSON.stringify(data))
+                    })
+                    .catch((error) => {
+                        console.error('Error:', error);
+                    });
+
+                fetch('/submissions/unfinished', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    })
+                    .then((response) => response.json())
+                    .then((data) => {
+                        console.log('Success:', data);
+                        localStorage.setItem('exercises_unfinished', JSON.stringify(data))
+                    })
+                    .catch((error) => {
+                        console.error('Error:', error);
+                    });
+                    
+                fetch('/submissions/finished', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    })
+                    .then((response) => response.json())
+                    .then((data) => {
+                        console.log('Success:', data);
+                        localStorage.setItem('exercises_unfinished', JSON.stringify(data))
+                    })
+                    .catch((error) => {
+                        console.error('Error:', error);
+                    });
+            }
+
+            function populateExerciseSection() {
+                //Available exercises
+                available_exercises = JSON.parse(localStorage.getItem('exercises'))
+                for (i = 0; i < available_exercises.length; i++) {
+                    exercise_id = available_exercises[i].id
+                    exercise_title = available_exercises[i].title
+
+                    var node = document.createElement('li');
+                    node.setAttribute("id", exercise_id)
+                    node.setAttribute("onclick", "displayExercise(\'"+exercise_id+"\')")
+                    node.appendChild(document.createTextNode(exercise_title));
+
+                    document.getElementById('available-exercises').appendChild(node);
+                }
+
+                finished_exercises = ['Coca cola', 'Sprite', 'Seven Up', 'Estathe', 'Fusetea', 'Fanta']
+                for (i = 0; i < finished_exercises.length; i++) {
+                    exercise_id = '#' + finished_exercises[i]
+                    exercise_title = finished_exercises[i]
+
+                    var node = document.createElement('li');
+                    node.setAttribute("id", exercise_id)
+                    node.setAttribute("onclick", "displayExercise(\'"+exercise_id+"\')")
+                    node.appendChild(document.createTextNode(exercise_title));
+
+                    document.getElementById('done-exercises').appendChild(node);
+                }
+
+                unfinished_exercises = ['Black russian', 'Negroni', 'Mohito']
+                for (i = 0; i < unfinished_exercises.length; i++) {
+                    exercise_id = '#' + unfinished_exercises[i]
+                    exercise_title = unfinished_exercises[i]
+
+                    var node = document.createElement('li');
+                    node.setAttribute("id", exercise_id)
+                    node.setAttribute("onclick", "displayExercise(\'"+exercise_id+"\')")
+                    node.appendChild(document.createTextNode(exercise_title));
+
+                    document.getElementById('bailed-exercises').appendChild(node);
+                }
+                
+            }
+            function displayExercise(ex_id) {
+                //Todo fetch exercise by id in order 
+                fetch('/exercises/'+ex_id, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    })
+                    .then((response) => response.json())
+                    .then((data) => {
+                        ex_title = data.title
+                        ex_description = data.description
+                        ex_title_html = '<h2 id="'+ex_id+'">'+ex_title+'</h2>'
+                        ex_description_html = '<span style="padding-bottom: 1rem;">'+ex_description+'</span>'
+                        ex_textarea_html = '<textarea id="code" rows="20" cols="80"></textarea>'
+                        ex_submit_html = '<input type="submit" value="Submit for grading">'
+                        ex_submission_status_html = '<h3 id="submission-status">No submissions yet</h3>'
+
+                        html_to_insert = ex_title_html + ex_description_html + ex_textarea_html + ex_submit_html + ex_submission_status_html
+
+                        document.getElementById('editor').innerHTML = html_to_insert
+
+                    })
+                    .catch((error) => {
+                        console.error('Error:', error);
+                        output = document.getElementById("output")
+                        output.innerHTML = 'Error occured, try again or later'
+                    });
+            }
+        </script>
+        <style>
+            .exercises {
+                display: flex;
+                justify-content: space-evenly;
+            }
+            .editor {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>LeechCode</h1>
+        <div class="exercises">
+            <div class="available">
+                <h3>Available exercises</h3>
+                <ol id="available-exercises">
+                </ol>
+            </div>
+            <div class="done">
+                <h3>Completed exercises</h3>
+                <ol id="done-exercises">
+                </ol>
+            </div>
+            <div class="bailed">
+                <h3>Uncompleted exercises</h3>
+                <ol id="bailed-exercises">
+                </ol>
+            </div>
+        </div>
+        <div id='editor' class="editor">
+        </div>
+        <script>
+            fetchAvailableExercises();
+            populateExerciseSection();
+        </script>
+    </body>
+</html>
