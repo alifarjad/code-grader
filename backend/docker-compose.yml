@@ -19,21 +19,21 @@ services:
       - "5002:5002"
     depends_on:
       - "postgresnode"
-  grader-gateway:
-    container_name: gradergateway
-    build: ./grader-gateway
-    image: gradergateway:v1
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    ports:
-      - "7777:7777"
-  worker:
-    container_name: backendworker
-    build: ./worker
-    image: backendworker:v1
-    depends_on:
-      - "postgresnode"
-      - "grader-gateway"
+#  grader-gateway:
+#    container_name: gradergateway
+#    build: ./grader-gateway
+#    image: gradergateway:v1
+#    volumes:
+#      - /var/run/docker.sock:/var/run/docker.sock
+#    ports:
+#      - "7777:7777"
+#  worker:
+#    container_name: backendworker
+#    build: ./worker
+#    image: backendworker:v1
+#    depends_on:
+#      - "postgresnode"
+#      - "grader-gateway"
 
 
 #cd nodeapi

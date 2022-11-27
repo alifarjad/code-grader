@@ -1,10 +1,9 @@
-const { Sequelize, Model, DataTypes } = require('sequelize');
+const { Sequelize, Model, DataTypes, HasOne } = require('sequelize');
 const path = require('path');
 var crypto = require('crypto');
 const cookieParser = require('cookie-parser');
 
 const sequelize = new Sequelize('postgres://express:express@postgresnode:5432/express', {
-    logging: false,
     pool: {
     max: 50,
     min: 0,
@@ -19,7 +18,7 @@ const Submissions = sequelize.define('submissions', {
         primaryKey: true
     },
     user_id: DataTypes.STRING,
-    exercise_id: DataTypes.STRING,
+    exercise_id: Sequelize.INTEGER,
     code: DataTypes.TEXT('long'),
     code_hash: DataTypes.STRING,
     status: DataTypes.STRING
@@ -45,7 +44,7 @@ const SubmissionResults = sequelize.define('submissions_results', {
         autoIncrement: true,
         primaryKey: true
     },
-    exercise_id: DataTypes.STRING,
+    exercise_id: Sequelize.INTEGER,
     code_hash: DataTypes.STRING,
     status: DataTypes.STRING
     }, {indexes: [
@@ -60,7 +59,7 @@ const SubmissionResults = sequelize.define('submissions_results', {
     
 
 const Exercises = sequelize.define('exercises', {
-    id: {
+    exercise_id: {
         type: Sequelize.INTEGER,
         autoIncrement: true,
         primaryKey: true
@@ -70,7 +69,7 @@ const Exercises = sequelize.define('exercises', {
     }, {indexes: [
         {
             unique: true,
-            fields: ['id']
+            fields: ['exercise_id']
         }]}
     );
 
@@ -172,14 +171,26 @@ app.get('/submissions/finished', async (req, res) => {
     }
 
     const submissions = await Submissions.findAll({
-        where: { user_id: req.cookies.userID, status: "PASS"}});
+        where: { user_id: req.cookies.userID, status: "PASS"},
+        distinct: 'exercise_id',
+        order: [
+            ['exercise_id', 'DESC']],
+        include: [
+            {
+                model: Exercises,
+                association: new HasOne(Exercises, Submissions, {foreignKey: 'exercise_id'}),
+                attributes: ['title']
+            },
+        ]});
 
-    res.status(200)
-    if(submissions==null || submissions==undefined) {
-        res.json([])
-    } else {
-        res.send(submissions)
-    }
+        res.status(200)
+        if(submissions==null || submissions==undefined) {
+            res.json([])
+        } else {
+            const arrayUniqueByKey = [...new Map(submissions.map(item =>
+                [item['exercise_id'], item])).values()];
+            res.send(submissions)
+        }
 
 })
 
@@ -190,19 +201,35 @@ app.get('/submissions/unfinished', async (req, res) => {
         res.send('Bad request')
         return
     }
-
-    const submissions = await Submissions.findAll({
-        where: { user_id: req.cookies.userID, status: "FAIL"},
-        limit: 3});
-
-    res.status(200)
-    if(submissions==null || submissions==undefined) {
-        res.json([])
-    } else {
-        res.send(submissions)
-    }
     
-})
+    const submissions = await Submissions.findAll({
+        //where: { user_id: req.cookies.userID, status: "FAIL"},
+        //where: Sequelize.literal("(posts.id NOT IN (SELECT R.postId FROM Rating R WHERE R.userId="+userId+"))"),
+        where: Sequelize.literal('("submissions"."exercise_id" not in (select "submissions"."exercise_id" from "submissions" where "submissions"."user_id"=\''+req.cookies.userID+'\' and "submissions"."status"=\'PASS\') AND "submissions"."user_id"=\''+req.cookies.userID+'\' AND "submissions"."status"=\'FAIL\')'),
+        distinct: 'exercise_id',
+        order: [
+            ['exercise_id', 'ASC']],
+        include: [
+            {
+                model: Exercises,
+                association: new HasOne(Exercises, Submissions, {foreignKey: 'exercise_id'}),
+                attributes: ['title']
+            },
+        ]});
+
+        res.status(200)
+        if(submissions==null || submissions==undefined) {
+            res.json([])
+        } else {
+            const arrayUniqueByKey = [...new Map(submissions.map(item =>
+                [item['exercise_id'], item])).values()];
+            if(arrayUniqueByKey.length>3)
+                res.send(arrayUniqueByKey.slice(0,3))
+            else
+                res.send(arrayUniqueByKey)
+        }
+    
+    })
 
 app.get('/submissions/grading', async (req, res) => {
 
@@ -213,9 +240,16 @@ app.get('/submissions/grading', async (req, res) => {
     }
 
     const submissions = await Submissions.findAll({
-         where: { user_id: req.cookies.userID, status: "GRADING"},
-         limit: 3});
- 
+        where: { user_id: req.cookies.userID, status: "GRADING"},
+        limit: 3,
+        include: [
+            {
+                model: Exercises,
+                association: new HasOne(Exercises, Submissions, {foreignKey: 'exercise_id'}),
+                attributes: ['title']
+            },
+        ]});
+
      res.status(200)
      if(submissions==null || submissions==undefined) {
          res.json([])
@@ -233,8 +267,14 @@ app.get('/submissions/submitted', async (req, res) => {
     }
 
     const submissions = await Submissions.findAll({
-         where: { user_id: req.cookies.userID, status: "SUBMITTED"},
-         limit: 3});
+        where: { user_id: req.cookies.userID, status: "SUBMITTED"},
+        include: [
+            {
+                model: Exercises,
+                association: new HasOne(Exercises, Submissions, {foreignKey: 'exercise_id'}),
+                attributes: ['title']
+            },
+        ]});
  
      res.status(200)
      if(submissions==null || submissions==undefined) {
@@ -351,3 +391,4 @@ async function populate_db() {
     });
 
 }
+

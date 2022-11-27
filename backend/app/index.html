@@ -62,7 +62,7 @@
                     .then((response) => response.json())
                     .then((data) => {
                         console.log('Success:', data);
-                        localStorage.setItem('exercises_unfinished', JSON.stringify(data))
+                        localStorage.setItem('exercises_finished', JSON.stringify(data))
                     })
                     .catch((error) => {
                         console.error('Error:', error);
@@ -73,7 +73,7 @@
                 //Available exercises
                 available_exercises = JSON.parse(localStorage.getItem('exercises'))
                 for (i = 0; i < available_exercises.length; i++) {
-                    exercise_id = available_exercises[i].id
+                    exercise_id = available_exercises[i].exercise_id
                     exercise_title = available_exercises[i].title
 
                     var node = document.createElement('li');
@@ -84,10 +84,10 @@
                     document.getElementById('available-exercises').appendChild(node);
                 }
 
-                finished_exercises = ['Coca cola', 'Sprite', 'Seven Up', 'Estathe', 'Fusetea', 'Fanta']
+                finished_exercises = JSON.parse(localStorage.getItem('exercises_finished'))
                 for (i = 0; i < finished_exercises.length; i++) {
-                    exercise_id = '#' + finished_exercises[i]
-                    exercise_title = finished_exercises[i]
+                    exercise_id = finished_exercises[i].exercise_id
+                    exercise_title = finished_exercises[i].submission.title
 
                     var node = document.createElement('li');
                     node.setAttribute("id", exercise_id)
@@ -97,10 +97,10 @@
                     document.getElementById('done-exercises').appendChild(node);
                 }
 
-                unfinished_exercises = ['Black russian', 'Negroni', 'Mohito']
+                unfinished_exercises = JSON.parse(localStorage.getItem('exercises_unfinished'))
                 for (i = 0; i < unfinished_exercises.length; i++) {
-                    exercise_id = '#' + unfinished_exercises[i]
-                    exercise_title = unfinished_exercises[i]
+                    exercise_id = unfinished_exercises[i].exercise_id
+                    exercise_title = unfinished_exercises[i].submission.title
 
                     var node = document.createElement('li');
                     node.setAttribute("id", exercise_id)

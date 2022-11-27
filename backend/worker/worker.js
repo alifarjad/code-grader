@@ -1,6 +1,6 @@
 const { Sequelize, Model, DataTypes } = require('sequelize');
 
-const REFRESH_RATE = 5000
+const REFRESH_RATE = 1000
 const MAX_CONTAINERS = 5
 
 const sequelize = new Sequelize('postgres://express:express@postgresnode:5432/express', {
@@ -19,7 +19,7 @@ const sequelize = new Sequelize('postgres://express:express@postgresnode:5432/ex
         primaryKey: true
     },
     user_id: DataTypes.STRING,
-    exercise_id: DataTypes.STRING,
+    exercise_id: Sequelize.INTEGER,
     code: DataTypes.TEXT('long'),
     code_hash: DataTypes.STRING,
     status: DataTypes.STRING
@@ -45,7 +45,7 @@ const SubmissionResults = sequelize.define('submissions_results', {
         autoIncrement: true,
         primaryKey: true
     },
-    exercise_id: DataTypes.STRING,
+    exercise_id: Sequelize.INTEGER,
     code_hash: DataTypes.STRING,
     status: DataTypes.STRING
     }, {indexes: [
@@ -57,6 +57,7 @@ const SubmissionResults = sequelize.define('submissions_results', {
             fields: ['exercise_id', 'code_hash']
         }]}
     );
+    
 
 const ContainersCounter = sequelize.define('containers_counter', {
         id: {
@@ -177,8 +178,6 @@ async function main() {
                 submissions = []
             }
             submissions.forEach(async (submission) => {
-                submission.status = 'GRADING'
-                await submission.save()
                 var code = submission.code
                 var exercise_id = submission.exercise_id
                 var code_hash = submission.code_hash
@@ -195,6 +194,12 @@ async function main() {
                     });
                 }
                 else {//Case we dont have a cached submission
+                    //We put into GRADING every submission that has the same code hash and exercise id
+                    await Submissions.update( { status: 'GRADING'},
+                    { where: {  code_hash: code_hash, 
+                                exercise_id: exercise_id 
+                            }
+                    });
                     try {
                         await incrementContainers()
                         const formData = new FormData()
