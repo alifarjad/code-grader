@@ -1,4 +1,4 @@
-const { Sequelize, Model, DataTypes, HasOne } = require('sequelize');
+const { Sequelize, Model, DataTypes, HasOne, Op } = require('sequelize');
 const path = require('path');
 var crypto = require('crypto');
 const cookieParser = require('cookie-parser');
@@ -90,6 +90,7 @@ app.listen(5002, function() {
     console.log('listening on 5002')
   })
 
+
 //Instruct the user to turn cookies on
 app.get('/', (req, res) => {
     var cookie = req.cookies.userID;
@@ -141,11 +142,6 @@ app.post('/submissions', async (req, res) => {
     const submission = await Submissions.findOne({
         where: { user_id: req.cookies.userID, exercise_id: ''+req.body.exercise_id, code_hash: chash}});
 
-    if(submission!=null && submission!=undefined) {
-        res.status(200)
-        res.send('submission already present')
-        return
-    } else {
         await Submissions.create({
             user_id: req.cookies.userID,
             exercise_id: ''+req.body.exercise_id,
@@ -159,7 +155,6 @@ app.post('/submissions', async (req, res) => {
             res.status(500)
             res.send(error)
         });
-    }
 })
 
 app.get('/submissions/finished', async (req, res) => {
@@ -189,7 +184,7 @@ app.get('/submissions/finished', async (req, res) => {
         } else {
             const arrayUniqueByKey = [...new Map(submissions.map(item =>
                 [item['exercise_id'], item])).values()];
-            res.send(submissions)
+            res.send(arrayUniqueByKey)
         }
 
 })
@@ -205,7 +200,7 @@ app.get('/submissions/unfinished', async (req, res) => {
     const submissions = await Submissions.findAll({
         //where: { user_id: req.cookies.userID, status: "FAIL"},
         //where: Sequelize.literal("(posts.id NOT IN (SELECT R.postId FROM Rating R WHERE R.userId="+userId+"))"),
-        where: Sequelize.literal('("submissions"."exercise_id" not in (select "submissions"."exercise_id" from "submissions" where "submissions"."user_id"=\''+req.cookies.userID+'\' and "submissions"."status"=\'PASS\') AND "submissions"."user_id"=\''+req.cookies.userID+'\' AND "submissions"."status"=\'FAIL\')'),
+        where: Sequelize.literal('("submissions"."exercise_id" not in (select "submissions"."exercise_id" from "submissions" where "submissions"."user_id"=\''+req.cookies.userID+'\' and "submissions"."status"=\'PASS\') AND "submissions"."user_id"=\''+req.cookies.userID+'\' AND ("submissions"."status"=\'FAIL\' OR "submissions"."status"=\'ERROR\'))'),
         distinct: 'exercise_id',
         order: [
             ['exercise_id', 'ASC']],
@@ -240,8 +235,9 @@ app.get('/submissions/grading', async (req, res) => {
     }
 
     const submissions = await Submissions.findAll({
-        where: { user_id: req.cookies.userID, status: "GRADING"},
-        limit: 3,
+        where: { user_id: req.cookies.userID, status: {
+            [Op.or]: ['GRADING', 'SUBMITTED']
+          }},
         include: [
             {
                 model: Exercises,
@@ -254,37 +250,13 @@ app.get('/submissions/grading', async (req, res) => {
      if(submissions==null || submissions==undefined) {
          res.json([])
      } else {
-         res.send(submissions)
-     }
-})
-
-app.get('/submissions/submitted', async (req, res) => {
-
-    if(req.cookies.userID==null || req.cookies.userID==undefined) {
-        res.status(400)
-        res.send('Bad request')
-        return
+        const arrayUniqueByKey = [...new Map(submissions.map(item =>
+            [item['exercise_id'], item])).values()];
+        res.send(arrayUniqueByKey)
     }
-
-    const submissions = await Submissions.findAll({
-        where: { user_id: req.cookies.userID, status: "SUBMITTED"},
-        include: [
-            {
-                model: Exercises,
-                association: new HasOne(Exercises, Submissions, {foreignKey: 'exercise_id'}),
-                attributes: ['title']
-            },
-        ]});
- 
-     res.status(200)
-     if(submissions==null || submissions==undefined) {
-         res.json([])
-     } else {
-         res.send(submissions)
-     }
 })
 
-app.get('/submissions/:ex_id', async (req, res) => {
+app.get('/submissions/latest/:ex_id', async (req, res) => {
 
     var ex_id = req.params['ex_id']
 
@@ -294,18 +266,19 @@ app.get('/submissions/:ex_id', async (req, res) => {
         return
     }
 
-    
-    const submissions = await Submissions.findAll({
+    const submission = await Submissions.findOne({
+        order: [
+            ['createdAt', 'DESC']],
          where: { user_id: req.cookies.userID, exercise_id: ex_id},
          attributes: ['createdAt', 'status']
         });
  
-     if(submissions==null || submissions==undefined) {
+     if(submission==null || submission==undefined) {
         res.status(404)
         res.send('Not found')
      } else {
         res.status(200)
-        res.send(submissions)
+        res.send(submission)
      }
 })
 
@@ -325,6 +298,12 @@ async function connect_to_db(sequelize) {
         }
     }
 }
+
+function sleep(ms) {
+    return new Promise((resolve) => {
+      setTimeout(resolve, ms);
+    });
+  }
 
 async function populate_db() {
     Exercises.create({
@@ -357,37 +336,37 @@ async function populate_db() {
     Exercises.create({
         title: 'Team',
         description: 'Create a class Team and implement the two following constructors (and necessary properties) to the class. The default constructor should have three properties: (1) the name of the team (String), (2) the home town of the team (String), and (3) the year the team was formed (int). The named constructor nameAndYear should have two properties: (1) the name of the team (String) and (2) the year the team was formed (int). In the case of the named constructor, the home town of the team must be "Unknown". \
-        \nOnce completed, add a toString method to the class which leads to outputs outlined by the following examples. \
-        \nfinal hjk = Team("HJK", "Helsinki", 1907); \
-        \nprint(hjk); \
-        \nfinal secret = Team.nameAndYear("Secret", 1984); \
-        \nprint(secret); \
-        \nWith the code above, the output should be as follows. \
-        \n\nHJK (Helsinki, 1907) \
-        \nSecret (Unknown, 1984)',
+        <br>Once completed, add a toString method to the class which leads to outputs outlined by the following examples. \
+        <br>final hjk = Team("HJK", "Helsinki", 1907); \
+        <br>print(hjk); \
+        <br>final secret = Team.nameAndYear("Secret", 1984); \
+        <br>print(secret); \
+        <br>With the code above, the output should be as follows. \
+        <br><br>HJK (Helsinki, 1907) \
+        <br>Secret (Unknown, 1984)',
     });
 
     Exercises.create({
         title: 'Video and playlist',
         description: 'Implement the classes Video and Playlist as follows. The class Video should have a name (String), a duration in seconds (int), a constructor with named arguments, and a toString method. The default name should be "Unknown" and the default length should be 0. The class should work as follows. \
-        \n\nprint(Video(name: "One second clip", duration: 1)); \
-        \nprint(Video(name: "Hello again!", duration: 84)); \
-        \nWith the code above, the output should be as follows. \
-        \n\nOne second clip (1 second) \
-        \nHello again! (84 seconds) \
-        \nThe class Playlist should contain a list of videos, provide a default (no argument) constructor, and offer the following methods: (1) void add(Video video) that adds a video to the playlist, (2) bool has(String name) that returns true if the list of videos contains a video with the given name, and (3) int duration() that returns the sum of durations of the videos in the playlist. The class should work as follows. \
-        \n\nfinal playlist = Playlist(); \
-        \nprint(playlist.has("One second clip")); \
-        \nprint(playlist.duration()); \
-        \nplaylist.add(Video(name: "One second clip", duration: 1)); \
-        \nplaylist.add(Video(name: "Hello again!", duration: 84)); \
-        \nprint(playlist.has("One second clip")); \
-        \nprint(playlist.duration()); \
-        \nWith the code above, the output should be as follows. \
-        \n\nfalse \
-        \n0 \
-        \ntrue \
-        \n85',
+        <br><br>print(Video(name: "One second clip", duration: 1)); \
+        <br>print(Video(name: "Hello again!", duration: 84)); \
+        <br>With the code above, the output should be as follows. \
+        <br><br>One second clip (1 second) \
+        <br>Hello again! (84 seconds) \
+        <br>The class Playlist should contain a list of videos, provide a default (no argument) constructor, and offer the following methods: (1) void add(Video video) that adds a video to the playlist, (2) bool has(String name) that returns true if the list of videos contains a video with the given name, and (3) int duration() that returns the sum of durations of the videos in the playlist. The class should work as follows. \
+        <br><br>final playlist = Playlist(); \
+        <br>print(playlist.has("One second clip")); \
+        <br>print(playlist.duration()); \
+        <br>playlist.add(Video(name: "One second clip", duration: 1)); \
+        <br>playlist.add(Video(name: "Hello again!", duration: 84)); \
+        <br>print(playlist.has("One second clip")); \
+        <br>print(playlist.duration()); \
+        <br>With the code above, the output should be as follows. \
+        <br><br>false \
+        <br>0 \
+        <br>true \
+        <br>85',
     });
 
 }

@@ -1,6 +1,8 @@
 <html>
     <head>
         <script>
+            let exercise_poller_id = null
+
             function getCookie(cname) {
                 let name = cname + "=";
                 let decodedCookie = decodeURIComponent(document.cookie);
@@ -67,11 +69,84 @@
                     .catch((error) => {
                         console.error('Error:', error);
                     });
+
+                fetch('/submissions/grading', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    })
+                    .then((response) => response.json())
+                    .then((data) => {
+                        console.log('Success:', data);
+                        localStorage.setItem('exercises_grading', JSON.stringify(data))
+                    })
+                    .catch((error) => {
+                        console.error('Error:', error);
+                    });         
+            }
+
+            async function pollExercise() {
+                let current_ex = localStorage.getItem('current_exercise')
+                if(current_ex!=null && current_ex!=undefined) {
+                    // call your function here
+                    let f = await fetch('/submissions/latest/'+current_ex, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    })
+                    if(!f.ok) {
+                        document.getElementById('loader').style.visibility = "hidden"
+                        document.getElementById('submission-status').innerHTML='NO SUBMISSIONS YET'
+                    }
+                    else {
+                        let data = await f.json()
+                        console.log(data)
+                        if(data.status=="GRADING" || data.status=="SUBMITTED")
+                            document.getElementById('loader').style.visibility = "visible"
+                        else
+                            document.getElementById('loader').style.visibility = "hidden"
+                        console.log('Success:', data);
+                        if(data.status=="FAIL")
+                            document.getElementById('submission-status').style.backgroundColor = '#f08080'
+                        if(data.status=="PASS")
+                            document.getElementById('submission-status').style.backgroundColor = '#98fb98'
+                        if(data.status=="ERROR")
+                            document.getElementById('submission-status').style.backgroundColor = '#f08080'
+                        document.getElementById('submission-status').innerHTML=data.status
+                        populateExerciseSection();
+                    }      
+
+                }
+            }
+
+            function submitCode(ex_id) {
+                var myHeaders = new Headers();
+                myHeaders.append("Content-Type", "application/json");
+
+                var raw = JSON.stringify({
+                "exercise_id": ex_id,
+                "code": document.getElementById('code').value
+                });
+
+                var requestOptions = {
+                method: 'POST',
+                headers: myHeaders,
+                body: raw,
+                redirect: 'follow'
+                };
+
+                fetch("http://localhost:5002/submissions", requestOptions)
+                .then(response => response.text())
+                .then(result => {console.log(result);pollExercise()})
+                .catch(error => console.log('error', error));
             }
 
             function populateExerciseSection() {
                 //Available exercises
                 available_exercises = JSON.parse(localStorage.getItem('exercises'))
+                document.getElementById('available-exercises').innerHTML=''
                 for (i = 0; i < available_exercises.length; i++) {
                     exercise_id = available_exercises[i].exercise_id
                     exercise_title = available_exercises[i].title
@@ -85,6 +160,7 @@
                 }
 
                 finished_exercises = JSON.parse(localStorage.getItem('exercises_finished'))
+                document.getElementById('done-exercises').innerHTML=''
                 for (i = 0; i < finished_exercises.length; i++) {
                     exercise_id = finished_exercises[i].exercise_id
                     exercise_title = finished_exercises[i].submission.title
@@ -98,6 +174,7 @@
                 }
 
                 unfinished_exercises = JSON.parse(localStorage.getItem('exercises_unfinished'))
+                document.getElementById('bailed-exercises').innerHTML=''
                 for (i = 0; i < unfinished_exercises.length; i++) {
                     exercise_id = unfinished_exercises[i].exercise_id
                     exercise_title = unfinished_exercises[i].submission.title
@@ -109,9 +186,24 @@
 
                     document.getElementById('bailed-exercises').appendChild(node);
                 }
+
+                in_grading_exercises = JSON.parse(localStorage.getItem('exercises_grading'))
+                document.getElementById('grading-exercises').innerHTML=''
+                for (i = 0; i < in_grading_exercises.length; i++) {
+                    exercise_id = in_grading_exercises[i].exercise_id
+                    exercise_title = in_grading_exercises[i].submission.title
+
+                    var node = document.createElement('li');
+                    node.setAttribute("id", exercise_id)
+                    node.setAttribute("onclick", "displayExercise(\'"+exercise_id+"\')")
+                    node.appendChild(document.createTextNode(exercise_title));
+
+                    document.getElementById('grading-exercises').appendChild(node);
+                }
                 
             }
             function displayExercise(ex_id) {
+                localStorage.setItem('current_exercise', ex_id)
                 //Todo fetch exercise by id in order 
                 fetch('/exercises/'+ex_id, {
                     method: 'GET',
@@ -126,13 +218,15 @@
                         ex_title_html = '<h2 id="'+ex_id+'">'+ex_title+'</h2>'
                         ex_description_html = '<span style="padding-bottom: 1rem;">'+ex_description+'</span>'
                         ex_textarea_html = '<textarea id="code" rows="20" cols="80"></textarea>'
-                        ex_submit_html = '<input type="submit" value="Submit for grading">'
-                        ex_submission_status_html = '<h3 id="submission-status">No submissions yet</h3>'
+                        ex_submit_html = '<input onclick="submitCode('+ex_id+')" type="submit" value="Submit for grading">'
+                        ex_submission_status_html = '<h3 id="submission-status"></h3>'
+                        ex_loader_html = '<div id="loader" class="loader"></div>'
 
-                        html_to_insert = ex_title_html + ex_description_html + ex_textarea_html + ex_submit_html + ex_submission_status_html
+                        html_to_insert = ex_title_html + ex_description_html + ex_textarea_html + ex_submit_html + ex_submission_status_html + ex_loader_html
 
-                        document.getElementById('editor').innerHTML = html_to_insert
-
+                        document.getElementById('editor-area').innerHTML = html_to_insert
+                        
+                        pollExercise()
                     })
                     .catch((error) => {
                         console.error('Error:', error);
@@ -140,17 +234,36 @@
                         output.innerHTML = 'Error occured, try again or later'
                     });
             }
+
         </script>
         <style>
+            li:hover, li:active {
+                color: rgb(23, 55, 235);
+                cursor: pointer;
+            }
             .exercises {
                 display: flex;
                 justify-content: space-evenly;
             }
-            .editor {
+            .editor-area {
                 display: flex;
                 flex-direction: column;
                 align-items: center;
             }
+            .loader {
+                border: 16px solid #f3f3f3; /* Light grey */
+                border-top: 16px solid #3498db; /* Blue */
+                border-radius: 50%;
+                width: 5px;
+                height: 5px;
+                animation: spin 1s linear infinite;
+                visibility:hidden;
+                }
+
+                @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+                }
         </style>
     </head>
     <body>
@@ -171,12 +284,27 @@
                 <ol id="bailed-exercises">
                 </ol>
             </div>
+            <div class="grading">
+                <h3>Exercise in grading</h3>
+                <ol id="grading-exercises">
+                </ol>
+            </div>
         </div>
-        <div id='editor' class="editor">
+        <div id='editor-area' class="editor-area">
         </div>
         <script>
             fetchAvailableExercises();
             populateExerciseSection();
+            pollExercise()
+            displayExercise(localStorage.getItem('current_exercise'))
+            if(exercise_poller_id!=null)
+                clearInterval(exercise_poller_id)
+            exercise_poller_id = window.setInterval(async function(){
+                fetchAvailableExercises();
+                populateExerciseSection();
+                pollExercise()
+            }, 5000);
         </script>
     </body>
 </html>
+
