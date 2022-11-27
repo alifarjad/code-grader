@@ -7,14 +7,12 @@ services:
       - POSTGRES_DB=express
     container_name: postgresnode
     image: "postgres:15.0"
-    ports:
-      - "5432:5432"
+    expose:
+      - "5432"
   backend:
     container_name: nodeapibackend
     build: ./app
     image: nodeapibackend:v1
-    volumes:
-      - ./app:/usr/app
     ports:
       - "5002:5002"
     depends_on:
@@ -25,8 +23,8 @@ services:
     image: gradergateway:v1
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-    ports:
-      - "7777:7777"
+    expose:
+      - "7777"
   worker:
     container_name: backendworker
     build: ./worker
