@@ -1,4 +1,4 @@
-# CS-E4770 - Scalable code grader 
+# Scalable code grader 
 ## Code grader
 The system consists of four software services: the database, the web server, the code grading service and the worker service. While the first two are self explanatory, the last two are the heart of the system since they have the job to keep grading everything that is in the queue (namely the submission marked as 'SUBMITTED') even if the webserver is down. The code grading service is a rest api that simply receives some code and grades it using the docker image provided by the course. The worker on the other hand keeps seeking for submissions to grade and basically checks if the fingerprint of the code for the specific exercise has already been graded (Cache mechanism) otherwise it sends a rest request to the grading service (called grader-gateway). Since i the grading service spawns a container for every request, i had to limit the worker to only have 5 calls at a time. The worker has a polling rate of 5 seconds in order to not overload the host CPU.
 
